@@ -1,8 +1,9 @@
 *.pyc
-.idea
+.idea/
 .vscode
 .DS_Store
 *.swp
-uwsgi.ini
 **/migrations/0*.py
-**/media/*.*
+media/flowchart/*.*
+media/workflow_script/*.*
+!media/workflow_script/demo_script.py
