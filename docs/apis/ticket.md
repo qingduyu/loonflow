@@ -10,6 +10,13 @@ GET
 
 参数名 | 类型 | 必填 | 说明
 ---|---|---|---
+sn | varchar | 否 | 流水号，支持根据sn的前几位模糊查询
+title | varchar | 否 | 工单标题，模糊查询
+create_start | varchar | 否 | 创建时间起
+create_end | varchar | 否 | 创建时间止
+workflow_ids | varchar | 否 | 工作流ids，逗号隔开多个工作流id
+state_ids | varchar | 否 | 状态ids,逗号隔开多个状态id
+reverse | varchar | 否 | 是否按照创建时间倒序，0或者1
 page| int | 否 | 页码，默认1
 per_page| int | 否 | 每页个数，默认10
 username | varchar | 是 | 用户名
@@ -19,45 +26,38 @@ category | varchar | 是 | 类型('all':所有工单, 'owner':我创建的工单
 
 ```
 {
-  code: 0,
-  msg: "",
-  data: {
-    per_page: 10,
-    total: 2,
-    page: 1,
-    value: [{
-      title: "title",
-      participant_type_id: 1,
-      state:{
-        state_id: 1,
-        state_name: 发起人-编辑中
-      }
-      parent_ticket_id: 0,
-      gmt_modified: "2018-04-10 16:48:43",
-      workflow_id: 1,
-      sn: "loonflow201804010001",
-      parent_ticket_state_id: 0,
-      gmt_created: "2018-04-10 16:48:43",
-      creator: "admin",
-      participant: "admin"
-    },
-    {
-      title: "dfdsfsfsdf",
-      participant_type_id: 0,
-      state:{
-        state_id: 1,
-        state_name: 发起人-编辑中
-      }
-      parent_ticket_id: 0,
-      gmt_modified: "2018-04-10 16:43:20",
-      workflow_id: 1,
-      sn: "loonflow201804010002",
-      parent_ticket_state_id: 0,
-      gmt_created: "2018-04-10 16:43:20",
-      creator: "zhangsan",
-      participant: "zhangsan"
-    }
-    ]}
+	"msg": "",
+	"code": 0,
+	"data": {
+		"value": [{
+			"participant_info": {
+				"participant_type_id": 1,
+				"participant": "1",
+				"participant_name": "zhangsan",
+				"participant_type_name": "个人",
+        "participant_alias": "张三"
+			},
+			"gmt_created": "2018-05-15 07:16:38",
+			"parent_ticket_state_id": 0,
+			"state": {
+				"state_name": "发起人-确认中",
+				"state_id": 10
+			},
+			"creator": "lilei",
+			"parent_ticket_id": 0,
+			"title": "vpn申请",
+			"gmt_modified": "2018-05-22 07:26:54",
+			"workflow": {
+				"workflow_name": "vpn申请",
+				"workflow_id": 2
+			},
+			"sn": "loonflow_201805150001",
+			"id": 17
+		}],
+		"total": 1,
+		"page": 1,
+		"per_page": 10
+	}
 }
 ```
 
@@ -71,6 +71,7 @@ POST
 参数名 | 类型 | 必填 | 说明
 ---|---|---|---
 workflow_id | int | 是 | 工作流id(工单关联的工作流的id)
+transition_id | int | 是 | 新建工单时候的流转id（通过workflow/{id}/init_state接口可以获取新建工单时允许的transition）
 username | varchar | 是 | 新建工单的用户名
 parent_ticket_id| int | 否 | 父工单的id(用于子工单的逻辑，如果新建的工单是某个工单的子工单需要填写父工单的id)
 parent_ticket_state_id | varchar | 否 | 父工单的状态（子工单是和父工单的某个状态关联的）
@@ -119,7 +120,15 @@ username | varchar | 是 | 请求用户的用户名
         order_id: 0,
         field_type_id: 1,
         field_key: "model"
-      }],
+      },
+      {
+        field_attribute: 1,
+        order_id: 55,
+        name: "当前处理人",
+        value: "轨迹,王五",
+        field_key: "participant_info.participant_alias",
+        field_type_id: 5
+        }],
       participant_type_id: 0,
       title: "dfdsfsfsdf",
       participant: "zhangsan",

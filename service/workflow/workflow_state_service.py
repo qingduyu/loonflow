@@ -1,13 +1,15 @@
+# import json
 import json
 
 from django.db.models import QuerySet
-
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from apps.ticket.models import TicketCustomField
 from apps.workflow.models import State
 from service.base_service import BaseService
 from service.common.constant_service import CONSTANT_SERVICE
 from service.common.log_service import auto_log
+from service.workflow.workflow_custom_field_service import WorkflowCustomFieldService
 from service.workflow.workflow_transition_service import WorkflowTransitionService
-
 
 class WorkflowStateService(BaseService):
     def __init__(self):
@@ -27,6 +29,43 @@ class WorkflowStateService(BaseService):
         else:
             workflow_states = State.objects.filter(workflow_id=workflow_id, is_deleted=False).order_by('order_id')
             return workflow_states, ''
+
+    @staticmethod
+    @auto_log
+    def get_workflow_states_serialize(workflow_id, per_page=10, page=1):
+        """
+        获取序列化工作流状态记录
+        :param workflow_id:
+        :param per_page:
+        :param page:
+        :return:
+        """
+        if not workflow_id:
+            return False, 'except workflow_id but not provided'
+        workflow_states = State.objects.filter(workflow_id=workflow_id, is_deleted=False).order_by('order_id')
+
+        paginator = Paginator(workflow_states, per_page)
+
+        try:
+            workflow_states_result_paginator = paginator.page(page)
+        except PageNotAnInteger:
+            workflow_states_result_paginator = paginator.page(1)
+        except EmptyPage:
+            # If page is out of range (e.g. 9999), deliver last page of results
+            workflow_states_result_paginator = paginator.page(paginator.num_pages)
+        workflow_states_object_list = workflow_states_result_paginator.object_list
+        workflow_states_restful_list = []
+        for workflow_states_object in workflow_states_object_list:
+            result_dict = dict(id=id, name=workflow_states_object.name, workflow_id=workflow_states_object.workflow_id,
+                               sub_workflow_id=workflow_states_object.sub_workflow_id, is_hidden=workflow_states_object.is_hidden,
+                               order_id=workflow_states_object.order_id, type_id=workflow_states_object.type_id,
+                               participant_type_id=workflow_states_object.participant_type_id, participant=workflow_states_object.participant,
+                               distribute_type_id=workflow_states_object.distribute_type_id,
+                               state_field_str=json.loads(workflow_states_object.state_field_str), label=json.loads(workflow_states_object.label),
+                               creator=workflow_states_object.creator,
+                               gmt_created=str(workflow_states_object.gmt_created)[:19])
+            workflow_states_restful_list.append(result_dict)
+        return workflow_states_restful_list, dict(per_page=per_page, page=page, total=paginator.count)
 
     @staticmethod
     @auto_log
@@ -62,7 +101,6 @@ class WorkflowStateService(BaseService):
                                    creator=workflow_state.creator, gmt_created=str(workflow_state.gmt_created)[:19]
                                    )
             return state_info_dict, ''
-
 
     @classmethod
     @auto_log
@@ -103,11 +141,41 @@ class WorkflowStateService(BaseService):
         transition_info_list = []
         for transition in transition_queryset:
             transition_info_list.append(dict(transition_id=transition.id, transition_name=transition.name))
+
+        # 工单基础字段及属性
+        field_list = []
+        field_list.append(dict(field_key='title', field_name=u'标题', field_value=None, order_id=20,
+                               field_type_id=CONSTANT_SERVICE.FIELD_TYPE_STR,
+                               field_attribute=CONSTANT_SERVICE.FIELD_ATTRIBUTE_RO, description='工单的标题',
+                               field_choice={}, boolean_field_display={}, default_value=None, field_template=''))
+        custom_field_dict, msg = WorkflowCustomFieldService.get_workflow_custom_field(workflow_id)
+        for key, value in custom_field_dict.items():
+            field_list.append(dict(field_key=key, field_name=custom_field_dict[key]['field_name'], field_value=None, order_id=custom_field_dict[key]['order_id'],
+                                   field_type_id=custom_field_dict[key]['field_type_id'],
+                                   field_attribute=CONSTANT_SERVICE.FIELD_ATTRIBUTE_RO,
+                                   default_value=custom_field_dict[key]['default_value'],
+                                   description=custom_field_dict[key]['description'],
+                                   field_template=custom_field_dict[key]['field_template'],
+                                   boolean_field_display=json.loads(custom_field_dict[key]['boolean_field_display']) if custom_field_dict[key]['boolean_field_display'] else {},  # 之前model允许为空了，为了兼容先这么写,
+                                   field_choice=json.loads(custom_field_dict[key]['field_choice']),
+                                   ))
+
+        state_field_dict = json.loads(init_state_obj.state_field_str)
+        state_field_key_list = state_field_dict.keys()
+
+        new_field_list = []
+        for field0 in field_list:
+            if field0['field_key'] in state_field_key_list:
+                field0['field_attribute'] = state_field_dict[field0['field_key']]
+                new_field_list.append(field0)
+
+        # 字段排序
+        new_field_list = sorted(new_field_list, key=lambda r: r['order_id'])
         state_info_dict = dict(id=init_state_obj.id, name=init_state_obj.name, workflow_id=init_state_obj.workflow_id,
                                sub_workflow_id=init_state_obj.sub_workflow_id, distribute_type_id=init_state_obj.distribute_type_id,
                                is_hidden=init_state_obj.is_hidden, order_id=init_state_obj.order_id, type_id=init_state_obj.type_id,
                                participant_type_id=init_state_obj.participant_type_id, participant=init_state_obj.participant,
-                               state_field=json.loads(init_state_obj.state_field_str), label=json.loads(init_state_obj.label),
+                               field_list=new_field_list, label=json.loads(init_state_obj.label),
                                creator=init_state_obj.creator, gmt_created=str(init_state_obj.gmt_created)[:19],
                                transition=transition_info_list
                                )

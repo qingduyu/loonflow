@@ -53,33 +53,91 @@ username | varchar | 是 | 请求用户的用户名,用于做必要的权限控�
 ### 返回数据
 ```
 {
-	"data": {
-		"transition": [{ # 初始状态可以做的操作，也就是新建工单时的提交路径
-			"transition_name": "提交",
-			"transition_id": 1
-		}, {
-			"transition_name": "保存",
-			"transition_id": 2
-		}],
-		"state_field": {  # 提交工单时候需要的字段 及每个字段的读写属性
-			"model": 1
-		},
-		"order_id": 0,
-		"participant_type_id": 1,
-		"sub_workflow_id": 0,
-		"is_hidden": false,
-		"participant": "wangfei",
-		"workflow_id": 1,
-		"id": 1,
-		"creator": "admin",
-		"type_id": 1,
-		"label": {},
-		"distribute_type_id": 1,
-		"name": "新建中",
-		"gmt_created": "2018-04-23 20:53:33"
-	},
 	"msg": "",
-	"code": 0
+	"code": 0,
+	"data": {
+		"order_id": 0,
+		"workflow_id": 1,
+		"name": "新建中",
+		"participant_type_id": 1,
+		"distribute_type_id": 1,
+		"participant": "wangfei",
+		"is_hidden": false,
+		"type_id": 1,
+		"gmt_created": "2018-04-23 20:53:33",
+		"id": 1,
+		"transition": [{
+			"transition_id": 1,
+			"transition_name": "提交"
+		}, {
+			"transition_id": 2,
+			"transition_name": "保存"
+		}],
+		"sub_workflow_id": 0,
+		"creator": "admin",
+		"label": {},
+		"field_list": [{
+			"order_id": 20,
+			"field_key": "title",
+			"field_attribute": 2,
+			"value": null,
+			"name": "标题",
+			"field_type_id": 5
+		}, {
+			"order_id": 35,
+			"field_key": "leave_proxy",
+			"field_attribute": 2,
+			"field_type_id": 60,
+			"field_value": null,
+			"field_name": "代理人",
+			"field_choice": {}
+		}, {
+			"order_id": 25,
+			"field_key": "leave_end",
+			"field_attribute": 2,
+			"field_type_id": 30,
+			"field_value": null,
+			"field_name": "结束时间",
+			"field_choice": {}
+		}, {
+			"order_id": 20,
+			"field_key": "leave_start",
+			"field_attribute": 2,
+			"field_type_id": 30,
+			"field_value": null,
+			"field_name": "开始时间",
+			"field_choice": {}
+		}, {
+			"order_id": 40,
+			"field_key": "leave_type",
+			"field_attribute": 2,
+			"field_type_id": 40,
+			"field_value": null,
+			"field_name": "请假类型",
+			"field_choice": {
+				"1": "年假",
+				"2": "调休",
+				"3": "病假",
+				"4": "婚假"
+			}
+		}, {
+			"order_id": 45,
+			"field_key": "leave_reason",
+			"field_attribute": 2,
+			"field_type_id": 55,
+			"field_value": null,
+			"field_name": "请假原因及相关附件",
+			"field_choice": {}
+		}, {
+			"order_id": 30,
+			"field_key": "leave_days",
+			"field_attribute": 2,
+			"field_type_id": 5,
+			"field_value": null,
+			"field_name": "请假天数(0.5的倍数)",
+			"field_choice": {}
+		}]
+	}
 }
 ```
 
@@ -125,3 +183,44 @@ username | varchar | 是 | 请求用户的用户名,用于做必要的权限控�
 	msg: ""
 }
 ```
+
+# 获取工作流的状态列表
+### URL
+api/v1.0/workflows/{workflow_id}/states
+### method
+get
+### 使用场景
+可用于用户查询工单列表时选择工作流类型后，显示该工作流类型拥有的状态，然后可以再根据工单当前状态来查询
+### 请求参数
+参数名 | 类型 | 必填 | 说明
+---|---|---|---
+username | varchar | 是 | 请求用户的用户名,用于做必要的权限控制
+page | int | 否 | 第几页，默认第一页
+per_page | int | 否 | 每页多少行数据
+### 返回数据
+{
+	code: 0,
+	data: {
+		"total": 2,
+		"page": 1,
+		"per_page": 10,
+		"value": [{
+			"id": 1,
+			"name": "发起人编辑中",
+			"workflow_id": 1,
+			"sub_workflow_id": 0,
+			"is_hidden": 0,
+			"order_id": 0,
+			"participant_type_id": 5,
+			"participant": "creator",
+			"distribute_type_id": 1,
+			"state_field_str": {
+				"title": 2,
+				"description": 2,
+				},
+			"label": {},
+			"creator": "loonflow",
+			"gmt_created": "2018-02-27 06:00:00"
+			}]
+	},
+	msg: ""

@@ -28,6 +28,7 @@ from apps.workflow.models import Transition, State, WorkflowScript
 from service.account.account_base_service import AccountBaseService
 from service.common.constant_service import CONSTANT_SERVICE
 from service.ticket.ticket_base_service import TicketBaseService
+from django.conf import settings
 
 try:
     from StringIO import StringIO
@@ -76,11 +77,12 @@ def run_flow_task(ticket_id, script_name, state_id, action_from='loonrobot'):
     ticket_obj = TicketRecord.objects.filter(id=ticket_id, is_deleted=False).first()
     if ticket_obj.participant == script_name and ticket_obj.participant_type_id == CONSTANT_SERVICE.PARTICIPANT_TYPE_ROBOT:
         ## 校验脚本是否合法
-        script_obj = WorkflowScript.objects.filter(saved_name=script_name, is_deleted=False, is_active=True).first()
+        script_obj = WorkflowScript.objects.filter(saved_name='workflow_script/{}'.format(script_name), is_deleted=False, is_active=True).first()
         if not script_obj:
             return False, '脚本未注册或非激活状态'
 
-        script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "media/workflow_script"))
+        script_dir = os.path.join(settings.MEDIA_ROOT, "workflow_script")
+
         script_file = os.path.join(script_dir, script_name)
         globals = {'ticket_id': ticket_id, 'action_from': action_from}
         # 如果需要脚本执行完成后，工单不往下流转(也就脚本执行失败或调用其他接口失败的情况)，需要在脚本中抛出异常
@@ -144,6 +146,11 @@ def run_flow_task(ticket_id, script_name, state_id, action_from='loonrobot'):
         ticket_obj.participant_type_id = destination_participant_type_id
         ticket_obj.state_id = tar_state_obj.id
         ticket_obj.save()
+
+        add_relation, msg = TicketBaseService.get_ticket_dest_relation(destination_participant_type_id, destination_participant)
+        if add_relation:
+            new_relation, msg = TicketBaseService.add_ticket_relation(ticket_id, add_relation)  # 更新关系人信息
+
         logger.info('******脚本执行成功,工单基础信息更新完成, ticket_id:{}******'.format(ticket_id))
 
         # 子工单处理

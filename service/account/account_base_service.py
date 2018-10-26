@@ -1,4 +1,4 @@
-from apps.account.models import AppToken, LoonUser, LoonUserRole, LoonDept
+from apps.account.models import AppToken, LoonUser, LoonUserRole, LoonDept, LoonRole
 from service.base_service import BaseService
 from service.common.log_service import auto_log
 
@@ -44,7 +44,7 @@ class AccountBaseService(BaseService):
             return False, '用户信息不存在'
 
         user_role_queryset = LoonUserRole.objects.filter(user_id=user_obj.id, is_deleted=0).all()
-        user_role_id_list = [user_role.id for user_role in user_role_queryset]
+        user_role_id_list = [user_role.role_id for user_role in user_role_queryset]
         return user_role_id_list, ''
 
     @classmethod
@@ -142,6 +142,26 @@ class AccountBaseService(BaseService):
             return [], ''
         username_queryset = LoonUser.objects.filter(id__in=(user_id_list)).all()
         username_list = []
-        for username in username_queryset:
-            username_list.append(username)
+        for username_obj in username_queryset:
+            username_list.append(username_obj.username)
         return username_list, ''
+
+    @classmethod
+    @auto_log
+    def get_dept_by_id(cls, dept_id):
+        """
+        获取部门信息
+        :param dept_id:
+        :return:
+        """
+        return LoonDept.objects.filter(id=dept_id, is_deleted=False).first(), ''
+
+    @classmethod
+    @auto_log
+    def get_role_by_id(cls, role_id):
+        """
+        获取角色信息
+        :param role_id:
+        :return:
+        """
+        return LoonRole.objects.filter(id=role_id, is_deleted=False).first(), ''
