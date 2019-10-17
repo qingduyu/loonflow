@@ -1,4 +1,21 @@
 from settings.common import *
+
+MIDDLEWARE = [
+    'service.csrf_service.DisableCSRF',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'service.permission.api_permission.ApiPermissionCheck',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+DEBUG = False
+ALLOWED_HOSTS = ['*']
+
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
@@ -20,6 +37,8 @@ REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 REDIS_DB = 0
 REDIS_PASSWORD = ''
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/1'
+
 
 LOGGING = {
         'version': 1,
@@ -38,7 +57,7 @@ LOGGING = {
             'file_handler': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
-                'filename': '/Users/wangfei/arun.log',
+                'filename': HOMEPATH + '/loonflow.log',
                 'formatter': 'standard'
             },
             # 'console': {

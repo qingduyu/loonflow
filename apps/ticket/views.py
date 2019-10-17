@@ -17,19 +17,26 @@ class TicketListView(View):
         request_data = request.GET
         sn = request_data.get('sn', '')
         title = request_data.get('title', '')
-        username = request_data.get('username', '')
+        # username = request_data.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
         create_start = request_data.get('create_start', '')
         create_end = request_data.get('create_end', '')
         workflow_ids = request_data.get('workflow_ids', '')
         state_ids = request_data.get('state_ids', '')
+        ticket_ids = request_data.get('ticket_ids', '')
         reverse = int(request_data.get('reverse', 1))
         per_page = int(request_data.get('per_page', 10))
         page = int(request_data.get('page', 1))
+        is_end = request_data.get('is_end', '')
+        is_rejected = request_data.get('is_rejected', '')
+
         # 待办,关联的,创建
         category = request_data.get('category')
-        ticket_result_restful_list, msg = TicketBaseService.get_ticket_list(sn=sn, title=title, username=username,
-                                                                            create_start=create_start, create_end=create_end,
-                                                                            workflow_ids=workflow_ids, state_ids=state_ids, category=category, reverse=reverse, per_page=per_page, page=page)
+        # app_name
+        app_name = request.META.get('HTTP_APPNAME')
+
+        ticket_result_restful_list, msg = TicketBaseService.get_ticket_list(sn=sn, title=title, username=username, create_start=create_start, create_end=create_end, workflow_ids=workflow_ids, state_ids=state_ids, ticket_ids=ticket_ids,
+                                                                            category=category, reverse=reverse, per_page=per_page, page=page, app_name=app_name, is_end=is_end, is_rejected=is_rejected)
         if ticket_result_restful_list is not False:
             data = dict(value=ticket_result_restful_list, per_page=msg['per_page'], page=msg['page'], total=msg['total'])
             code, msg,  = 0, ''
@@ -48,8 +55,22 @@ class TicketListView(View):
         json_str = request.body.decode('utf-8')
         if not json_str:
             return api_response(-1, 'post参数为空', {})
+
         request_data_dict = json.loads(json_str)
-        new_ticket_result, msg = TicketBaseService.new_ticket(request_data_dict)
+        if not(isinstance(request_data_dict.get('workflow_id', None), int) and isinstance(request_data_dict.get('transition_id', None), int)):
+            # 临时先这么判断，后续针对所有view统一使用更优雅的方式来处理
+            return api_response(-1, 'workflow_id或transition_id类型不合法', {})
+
+        app_name = request.META.get('HTTP_APPNAME')
+        request_data_dict.update(dict(username=request.META.get('HTTP_USERNAME')))
+
+        from service.account.account_base_service import AccountBaseService
+        # 判断是否有创建某工单的权限
+        app_permission, msg = AccountBaseService.app_workflow_permission_check(app_name, request_data_dict.get('workflow_id'))
+        if not app_permission:
+            return api_response(-1, 'APP:{} have no permission to create this workflow ticket'.format(app_name), '')
+
+        new_ticket_result, msg = TicketBaseService.new_ticket(request_data_dict, app_name)
         if new_ticket_result:
             code, data = 0, {'ticket_id': new_ticket_result}
         else:
@@ -68,7 +89,14 @@ class TicketView(View):
         """
         request_data = request.GET
         ticket_id = kwargs.get('ticket_id')
-        username = request_data.get('username', '')
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
+        # username = request_data.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
         if not username:
             return api_response(-1, '参数不全，请提供username', '')
         result, msg = TicketBaseService.get_ticket_detail(ticket_id, username)
@@ -91,6 +119,14 @@ class TicketView(View):
             return api_response(-1, 'patch参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        request_data_dict.update(dict(username=request.META.get('HTTP_USERNAME')))
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         result, msg = TicketBaseService.handle_ticket(ticket_id, request_data_dict)
         if result or result is not False:
             code, data = 0, dict(value=result)
@@ -106,7 +142,14 @@ class TicketTransition(View):
     def get(self, request, *args, **kwargs):
         request_data = request.GET
         ticket_id = kwargs.get('ticket_id')
-        username = request_data.get('username', '')
+        # username = request_data.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         if not username:
             return api_response(-1, '参数不全，请提供username', '')
         result, msg = TicketBaseService.get_ticket_transition(ticket_id, username)
@@ -124,9 +167,16 @@ class TicketFlowlog(View):
     def get(self, request, *args, **kwargs):
         request_data = request.GET
         ticket_id = kwargs.get('ticket_id')
-        username = request_data.get('username', '')  # 可用于权限控制
+        # username = request_data.get('username', '')  # 可用于权限控制
+        username = request.META.get('HTTP_USERNAME')
         per_page = int(request_data.get('per_page', 10))
         page = int(request_data.get('page', 1))
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         if not username:
             return api_response(-1, '参数不全，请提供username', '')
 
@@ -147,7 +197,15 @@ class TicketFlowStep(View):
     def get(self, request, *args, **kwargs):
         request_data = request.GET
         ticket_id = kwargs.get('ticket_id')
-        username = request_data.get('username', '')  # 可用于权限控制
+        # username = request_data.get('username', '')  # 可用于权限控制
+        username = request.META.get('HTTP_USERNAME')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         if not username:
             return api_response(-1, '参数不全，请提供username', '')
 
@@ -177,8 +235,16 @@ class TicketState(View):
             return api_response(-1, 'patch参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
-        username = request_data_dict.get('username', '')  # 可用于权限控制
+        # username = request_data_dict.get('username', '')  # 可用于权限控制
+        username = request.META.get('HTTP_USERNAME')
         state_id = request_data_dict.get('state_id')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         if not state_id:
             code = -1
             msg = '请提供新的状态id'
@@ -202,7 +268,8 @@ class TicketsStates(View):
         :return:
         """
         request_data = request.GET
-        username = request_data.get('username', '')  # 可用于权限控制
+        # username = request_data.get('username', '')  # 可用于权限控制
+        username = request.META.get('HTTP_USERNAME')
         ticket_ids = request_data.get('ticket_ids')  # 逗号隔开
         ticket_id_list = ticket_ids.split(',')
         ticket_id_list = [int(ticket_id) for ticket_id in ticket_id_list]
@@ -229,7 +296,15 @@ class TicketAccept(View):
             return api_response(-1, 'post参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
-        username = request_data_dict.get('username', '')
+        # username = request_data_dict.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         result, msg = TicketBaseService.accept_ticket(ticket_id, username)
         if result:
             code, msg, data = 0, msg, result
@@ -253,9 +328,16 @@ class TicketDeliver(View):
             return api_response(-1, 'post参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
-        username = request_data_dict.get('username', '')
+        # username = request_data_dict.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
         target_username = request_data_dict.get('target_username', '')
         suggestion = request_data_dict.get('suggestion', '')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
 
         result, msg = TicketBaseService.deliver_ticket(ticket_id, username, target_username, suggestion)
         if result:
@@ -279,9 +361,17 @@ class TicketAddNode(View):
             return api_response(-1, 'post参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
-        username = request_data_dict.get('username', '')
+        # username = request_data_dict.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
         target_username = request_data_dict.get('target_username', '')
         suggestion = request_data_dict.get('suggestion', '')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         result, msg = TicketBaseService.add_node_ticket(ticket_id, username, target_username, suggestion)
         if result:
             code, msg, data = 0, msg, result
@@ -304,8 +394,16 @@ class TicketAddNodeEnd(View):
             return api_response(-1, 'post参数为空', {})
         request_data_dict = json.loads(json_str)
         ticket_id = kwargs.get('ticket_id')
-        username = request_data_dict.get('username', '')
+        # username = request_data_dict.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
         suggestion = request_data_dict.get('suggestion', '')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
         result, msg = TicketBaseService.add_node_ticket_end(ticket_id, username, suggestion)
         if result:
             code, msg, data = 0, msg, result
@@ -314,10 +412,132 @@ class TicketAddNodeEnd(View):
         return api_response(code, msg, data)
 
 
+class TicketField(View):
+    def patch(self, request, *args, **kwargs):
+        """
+        修改工单字段
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        json_str = request.body.decode('utf-8')
+        if not json_str:
+            return api_response(-1, 'post参数为空', {})
+        request_data_dict = json.loads(json_str)
+        ticket_id = kwargs.get('ticket_id')
+        # username = request_data_dict.get('username', '')
+        username = request.META.get('HTTP_USERNAME')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
+        result, msg = TicketBaseService.update_ticket_field_value(ticket_id, request_data_dict)
+        if result:
+            code, msg, data = 0, msg, result
+        else:
+            code, msg, data = -1, msg, ''
+        return api_response(code, msg, data)
 
 
-def ticketlist(response):
-    if response.method == 'POST':
-        return HttpResponse('postssss')
-    else:
-        return HttpResponse('getsss')
+class TicketScriptRetry(View):
+    def post(self, request, *args, **kwargs):
+        """
+        重新执行工单脚本(用于脚本执行出错的情况), 也可用于hook执行失败的情况
+        :return:
+        """
+        json_str = request.body.decode('utf-8')
+        if not json_str:
+            return api_response(-1, 'post参数为空', {})
+        request_data_dict = json.loads(json_str)
+        ticket_id = kwargs.get('ticket_id')
+        username = request.META.get('HTTP_USERNAME')
+
+        from service.account.account_base_service import AccountBaseService
+        app_name = request.META.get('HTTP_APPNAME')
+        app_permission_check, msg = AccountBaseService.app_ticket_permission_check(app_name, ticket_id)
+        if not app_permission_check:
+            return api_response(-1, msg, '')
+
+        if not username:
+            api_response(-1, 'need arg username', '')
+        result, msg = TicketBaseService.retry_ticket_script(ticket_id, username)
+        if result:
+            code, msg, data = 0, 'Ticket script retry start successful', ''
+        else:
+            code, msg, data = -1, msg, ''
+        return api_response(code, msg, data)
+
+
+class TicketComment(View):
+    def post(self, request, *args, **kwargs):
+        """
+        添加评论
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        json_str = request.body.decode('utf-8')
+        if not json_str:
+            return api_response(-1, 'post参数为空', {})
+        request_data_dict = json.loads(json_str)
+        ticket_id = kwargs.get('ticket_id')
+        username = request.META.get('HTTP_USERNAME')
+        suggestion = request_data_dict.get('suggestion', '')
+        result, msg = TicketBaseService.add_comment(ticket_id, username, suggestion)
+        if result:
+            code, msg, data = 0, 'add ticket comment successful', ''
+        else:
+            code, msg, data = -1, msg, ''
+        return api_response(code, msg, data)
+
+
+class TicketHookCallBack(View):
+    def post(self, request, *args, **kwargs):
+        """
+        工单hook回调，用于hoot请求后，被请求方执行完任务后回调loonflow,以触发工单继续流转
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        ticket_id = kwargs.get('ticket_id')
+        json_str = request.body.decode('utf-8')
+        if not json_str:
+            return api_response(-1, 'post参数为空', {})
+        request_data_dict = json.loads(json_str)
+        # {"result":true, "msg":"", field_value:{"xx":1,"bb":2}}
+        app_name = request.META.get('HTTP_APPNAME')
+
+        result, msg = TicketBaseService().hook_call_back(ticket_id, app_name, request_data_dict)
+        if result:
+            code, msg, data = 0, 'add ticket comment successful', ''
+        else:
+            code, msg, data = -1, msg, ''
+        return api_response(code, msg, data)
+
+
+class TicketParticipantInfo(View):
+    def get(self, request, *args, **kwargs):
+        """
+        工单当前处理人详情，调用方后端可用获取处理人信息后提供催办等功能
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        ticket_id = kwargs.get('ticket_id')
+        flag, msg = TicketBaseService.get_ticket_participant_info(ticket_id)
+        if flag:
+            code, msg, data = 0, '', msg
+        else:
+            code, msg, data = -1, msg, {}
+        return api_response(code, msg, data)
+
+
+
+

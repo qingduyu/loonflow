@@ -1,4 +1,17 @@
 from settings.common import *
+
+MIDDLEWARE = [
+    'service.csrf_service.DisableCSRF',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'service.permission.api_permission.ApiPermissionCheck',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
@@ -40,7 +53,7 @@ LOGGING = {
             'file_handler': {
                 'level': 'DEBUG',
                 'class': 'logging.FileHandler',
-                'filename': '/Users/wangfei/arun.log',
+                'filename': HOMEPATH + '/loonflow.log',
                 'formatter': 'standard'
             },
             'console': {

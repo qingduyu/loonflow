@@ -19,6 +19,10 @@ class TicketRecord(models.Model):
     relation = models.CharField('工单关联人', max_length=1000, default='', blank=True, help_text='工单流转过程中将保存所有相关的人(包括创建人、曾经的待处理人)，用于查询')
     in_add_node = models.BooleanField('加签状态中', default=False, help_text='是否处于加签状态下')
     add_node_man = models.CharField('加签人', max_length=50, default='', blank=True, help_text='加签操作的人，工单当前处理人处理完成后会回到该处理人，当处于加签状态下才有效')
+    script_run_last_result = models.BooleanField(u'脚本最后一次执行结果', default=True)
+    is_end = models.BooleanField('已结束', default=False, help_text='工单是否已处于结束状态')
+    is_rejected = models.BooleanField('被拒绝', default=False, help_text='工单是否处于被拒绝状态')
+    multi_all_person = models.CharField('全部处理的结果', max_length=1000, default='{}', blank=True, help_text='需要当前状态处理人全部处理时实际的处理结果，json格式')
 
     creator = models.CharField('创建人', max_length=50, default='admin')
     gmt_created = models.DateTimeField(u'创建时间', auto_now_add=True)
@@ -28,6 +32,26 @@ class TicketRecord(models.Model):
     class Meta:
         verbose_name = '工单记录'
         verbose_name_plural = '工单记录'
+
+    def get_to_dict(self):
+        return dict(
+            it=self.id,
+            title=self.title,
+            workflow_id=self.workflow_id,
+            sn=self.sn,
+            state_id=self.state_id,
+            parent_ticket_id=self.parent_ticket_id,
+            parent_ticket_state_id=self.parent_ticket_state_id,
+            participant_type_id=self.participant_type_id,
+            participant=self.participant,
+            relation=self.relation,
+            in_add_node=self.in_add_node,
+            add_node_man=self.add_node_man,
+            creator=self.creator,
+            gmt_created=self.gmt_created,
+            gmt_modified=self.gmt_modified,
+            is_deleted=self.is_deleted,
+        )
 
 
 class TicketFlowLog(models.Model):
@@ -52,25 +76,6 @@ class TicketFlowLog(models.Model):
     class Meta:
         verbose_name = '工单流转日志'
         verbose_name_plural = '工单流转日志'
-
-
-class TicketStateLastMan(models.Model):
-    """
-    记录工单每个状态的最后处理人，用于回退时候定位到上次处理的人
-    """
-    state_id = models.IntegerField('状态id')
-    ticket_id = models.IntegerField('工单id')
-    participant_type_id = models.IntegerField('处理人类型', help_text='见service.constant_service中定义')
-    participant = models.CharField(u'处理人', max_length=100, default='')
-
-    creator = models.CharField(u'创建人', max_length=50, default='admin')
-    gmt_created = models.DateTimeField(u'创建时间', auto_now_add=True)
-    gmt_modified = models.DateTimeField(u'修改时间', auto_now=True)
-    is_deleted = models.BooleanField(u'已删除', default=False)
-
-    class Meta:
-        verbose_name = '工单状态处理人'
-        verbose_name_plural = '工单状态处理人'
 
 
 class TicketCustomField(models.Model):
